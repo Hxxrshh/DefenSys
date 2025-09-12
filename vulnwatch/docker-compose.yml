@@ -1,0 +1,168 @@
+services:
+  # Core API Service
+  vulnalert:
+    build:
+      context: ./backend/VulnAlert
+      dockerfile: Dockerfile
+    container_name: defensys-api
+    ports:
+      - "5000:5000"
+    networks:
+      - defensys-net
+    environment:
+      - DATABASE_URL=sqlite:///app.db
+      - FLASK_APP=src/simple_server.py
+    volumes:
+      - ./backend/VulnAlert:/app
+
+  # PostgreSQL Database
+  db:
+    image: postgres:14-alpine
+    container_name: defensys-postgres
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=defensysdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - defensys-net
+
+  # Redis for queuing and caching
+  redis:
+    image: redis:7-alpine
+    container_name: defensys-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - defensys-net
+    volumes:
+      - redis_data:/data
+
+  # OpenSearch for log aggregation and search
+  opensearch:
+    image: opensearchproject/opensearch:2.8.0
+    container_name: defensys-opensearch
+    environment:
+      - cluster.name=defensys-cluster
+      - node.name=defensys-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - defensys-net
+
+  # Message Broker (RabbitMQ)
+  broker:
+    image: rabbitmq:3.12-management-alpine
+    container_name: defensys-broker
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - defensys-net
+
+  # SAST Scanner Service
+  sast-scanner:
+    build:
+      context: ./backend/scanners/sast
+      dockerfile: Dockerfile
+    container_name: defensys-sast
+    networks:
+      - defensys-net
+    depends_on:
+      - broker
+    environment:
+      - BROKER_URL=amqp://admin:admin123@broker:5672/
+      - API_URL=http://vulnalert:5000
+
+  # Secret Scanner Service
+  secret-scanner:
+    build:
+      context: ./backend/scanners/secrets
+      dockerfile: Dockerfile
+    container_name: defensys-secrets
+    networks:
+      - defensys-net
+    depends_on:
+      - broker
+    environment:
+      - BROKER_URL=amqp://admin:admin123@broker:5672/
+      - API_URL=http://vulnalert:5000
+
+  # Dependency Scanner Service
+  dependency-scanner:
+    build:
+      context: ./backend/scanners/dependencies
+      dockerfile: Dockerfile
+    container_name: defensys-deps
+    networks:
+      - defensys-net
+    depends_on:
+      - broker
+    environment:
+      - BROKER_URL=amqp://admin:admin123@broker:5672/
+      - API_URL=http://vulnalert:5000
+
+  # Frontend React Dashboard
+  frontend:
+    build:
+      context: ./frontend/vulnwatch-dash
+      dockerfile: Dockerfile
+    container_name: defensys-frontend
+    ports:
+      - "8081:80"
+    networks:
+      - defensys-net
+    depends_on:
+      - vulnalert
+
+  # Test Applications (for scanning targets)
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: defensys-dvwa
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - defensys-net
+
+  juiceshop:
+    image: bkimminich/juice-shop
+    container_name: defensys-juiceshop
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - defensys-net
+
+networks:
+  defensys-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  opensearch_data:
+  rabbitmq_data:

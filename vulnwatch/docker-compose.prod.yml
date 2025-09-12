@@ -1,0 +1,275 @@
+version: '3.8'
+
+services:
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: defensys-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - defensys-api
+      - defensys-frontend
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+  # Production API Service
+  defensys-api:
+    build:
+      context: ./backend/VulnAlert
+      dockerfile: Dockerfile.prod
+    container_name: defensys-api
+    environment:
+      - DATABASE_URL=postgresql://defensys_user:${POSTGRES_PASSWORD}@postgres:5432/defensys_prod
+      - BROKER_URL=amqp://defensys:${RABBITMQ_PASSWORD}@broker:5672/
+      - REDIS_URL=redis://redis:6379/0
+      - OPENSEARCH_URL=http://opensearch:9200
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - api_logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - broker
+      - opensearch
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Production Frontend
+  defensys-frontend:
+    build:
+      context: ./frontend/vulnwatch-dash
+      dockerfile: Dockerfile.prod
+    container_name: defensys-frontend
+    environment:
+      - REACT_APP_API_URL=https://api.defensys.yourdomain.com
+      - NODE_ENV=production
+    depends_on:
+      - defensys-api
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # Production PostgreSQL with High Availability
+  postgres:
+    image: postgres:14-alpine
+    container_name: defensys-postgres
+    environment:
+      - POSTGRES_USER=defensys_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=defensys_prod
+      - POSTGRES_INITDB_ARGS="--data-checksums"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
+      - ./scripts/backup.sh:/usr/local/bin/backup.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    command: |
+      postgres 
+      -c shared_preload_libraries=pg_stat_statements
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+
+  # Redis with Persistence
+  redis:
+    image: redis:7-alpine
+    container_name: defensys-redis
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+  # OpenSearch Production Cluster
+  opensearch:
+    image: opensearchproject/opensearch:2.8.0
+    container_name: defensys-opensearch
+    environment:
+      - cluster.name=defensys-prod
+      - node.name=defensys-node-1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=false"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+      - opensearch_logs:/usr/share/opensearch/logs
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+  # RabbitMQ Production
+  broker:
+    image: rabbitmq:3.12-management-alpine
+    container_name: defensys-broker
+    environment:
+      - RABBITMQ_DEFAULT_USER=defensys
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+      - RABBITMQ_ERLANG_COOKIE=${RABBITMQ_ERLANG_COOKIE}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+  # SAST Scanner Service
+  sast-scanner:
+    build:
+      context: ./backend/scanners/sast
+      dockerfile: Dockerfile
+    environment:
+      - BROKER_URL=amqp://defensys:${RABBITMQ_PASSWORD}@broker:5672/
+      - API_URL=http://defensys-api:5000
+    depends_on:
+      - broker
+      - defensys-api
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # Secret Scanner Service
+  secret-scanner:
+    build:
+      context: ./backend/scanners/secrets
+      dockerfile: Dockerfile
+    environment:
+      - BROKER_URL=amqp://defensys:${RABBITMQ_PASSWORD}@broker:5672/
+      - API_URL=http://defensys-api:5000
+    depends_on:
+      - broker
+      - defensys-api
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # Dependency Scanner Service
+  dependency-scanner:
+    build:
+      context: ./backend/scanners/dependencies
+      dockerfile: Dockerfile
+    environment:
+      - BROKER_URL=amqp://defensys:${RABBITMQ_PASSWORD}@broker:5672/
+      - API_URL=http://defensys-api:5000
+    depends_on:
+      - broker
+      - defensys-api
+    networks:
+      - defensys-net
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: defensys-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: defensys-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+  # Log Aggregation
+  filebeat:
+    image: elastic/filebeat:8.8.0
+    container_name: defensys-filebeat
+    volumes:
+      - ./monitoring/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - api_logs:/var/log/defensys
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - defensys-net
+    restart: unless-stopped
+
+networks:
+  defensys-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_backups:
+    driver: local
+  redis_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  opensearch_logs:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  api_logs:
+    driver: local

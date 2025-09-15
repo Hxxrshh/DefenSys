@@ -64,6 +64,6 @@ class HttpClient:
 # Example usage (for testing only)
 if __name__ == "__main__":
     client = HttpClient()
-    resp = client.get("https://httpbin.org/get", params={"test": "vulnalert"})
+    resp = client.get("https://httpbin.org/get", params={"test": "defensys"})
     print("Status:", resp.status_code)
     print("Body:", resp.text[:200])

@@ -3,7 +3,7 @@
 import sqlite3
 from datetime import datetime
 
-DB_NAME = "vulnalert.db"
+DB_NAME = "defensys.db"
 
 class DatabaseManager:
     """

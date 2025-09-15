@@ -112,7 +112,7 @@ def create_sample_data():
         scan_types=['SAST', 'SECRET', 'DEPENDENCY'],
         status='COMPLETED',
         completed_at=datetime.utcnow(),
-        total_vulnerabilities=5
+        total_vulnerabilities=7
     )
     db.session.add(scan)
     db.session.commit()
@@ -151,6 +151,50 @@ def create_sample_data():
             'package_version': '2.25.1',
             'vulnerability_id': 'CVE-2023-32681',
             'file_path': 'requirements.txt'
+        },
+        {
+            'scan_id': scan.id,
+            'scanner': 'trufflehog',
+            'severity': 'CRITICAL',
+            'title': 'AWS Secret Key Exposed',
+            'description': 'AWS secret access key found in repository',
+            'file_path': 'config/aws.py',
+            'line_number': 12,
+            'vulnerability_id': 'SECRET-001',
+            'confidence': 'HIGH'
+        },
+        {
+            'scan_id': scan.id,
+            'scanner': 'bandit',
+            'severity': 'MEDIUM',
+            'title': 'Use of insecure MD5 hash',
+            'description': 'MD5 hash algorithm is cryptographically insecure',
+            'file_path': 'src/auth.py',
+            'line_number': 89,
+            'vulnerability_id': 'CWE-327',
+            'confidence': 'MEDIUM'
+        },
+        {
+            'scan_id': scan.id,
+            'scanner': 'semgrep',
+            'severity': 'LOW',
+            'title': 'Missing input validation',
+            'description': 'User input not properly validated',
+            'file_path': 'src/forms.py',
+            'line_number': 34,
+            'vulnerability_id': 'CWE-20',
+            'confidence': 'LOW'
+        },
+        {
+            'scan_id': scan.id,
+            'scanner': 'eslint',
+            'severity': 'MEDIUM',
+            'title': 'Potential XSS vulnerability',
+            'description': 'Unescaped user input in DOM manipulation',
+            'file_path': 'static/js/app.js',
+            'line_number': 67,
+            'vulnerability_id': 'CWE-79',
+            'confidence': 'MEDIUM'
         }
     ]
     

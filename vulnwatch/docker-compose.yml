@@ -1,6 +1,6 @@
 services:
   # Core API Service
-  vulnalert:
+  defensys:
     build:
       context: ./backend/VulnAlert
       dockerfile: Dockerfile
@@ -95,7 +95,7 @@ services:
       - broker
     environment:
       - BROKER_URL=amqp://admin:admin123@broker:5672/
-      - API_URL=http://vulnalert:5000
+      - API_URL=http://defensys:5000
 
   # Secret Scanner Service
   secret-scanner:
@@ -109,7 +109,7 @@ services:
       - broker
     environment:
       - BROKER_URL=amqp://admin:admin123@broker:5672/
-      - API_URL=http://vulnalert:5000
+      - API_URL=http://defensys:5000
 
   # Dependency Scanner Service
   dependency-scanner:
@@ -123,7 +123,7 @@ services:
       - broker
     environment:
       - BROKER_URL=amqp://admin:admin123@broker:5672/
-      - API_URL=http://vulnalert:5000
+      - API_URL=http://defensys:5000
 
   # Frontend React Dashboard
   frontend:
@@ -136,7 +136,7 @@ services:
     networks:
       - defensys-net
     depends_on:
-      - vulnalert
+      - defensys
 
   # Test Applications (for scanning targets)
   dvwa:

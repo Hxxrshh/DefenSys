@@ -8,7 +8,7 @@ class Reporter:
     Reporter integrates alerts and database for generating reports.
     """
 
-    def __init__(self, db_path="vulnalert.db"):
+    def __init__(self, db_path="defensys.db"):
         self.alert_manager = AlertManager()
         self.db = DatabaseManager(db_path)
 

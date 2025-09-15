@@ -30,8 +30,8 @@ class AlertManager:
 
     def to_html(self):
         html = [
-            "<html><head><title>VulnAlert Report</title></head><body>",
-            "<h1>VulnAlert Scan Report</h1>",
+            "<html><head><title>Defensys Report</title></head><body>",
+            "<h1>Defensys Scan Report</h1>",
             "<table border='1' cellpadding='5' cellspacing='0'>",
             "<tr><th>Timestamp</th><th>Vulnerability</th><th>Severity</th><th>Evidence</th><th>Remediation</th></tr>"
         ]

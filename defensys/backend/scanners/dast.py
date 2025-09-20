@@ -316,6 +316,300 @@ class NiktoScanner(DastScanner):
         
         return findings
 
+
+class SqlmapScanner(DastScanner):
+    """SQLMap SQL Injection Scanner"""
+    
+    def __init__(self):
+        super().__init__()
+        self.name = "SQLMap"
+        self.tool_command = "sqlmap"
+    
+    def is_available(self) -> bool:
+        """Check if SQLMap is installed"""
+        try:
+            result = subprocess.run([self.tool_command, "--version"], 
+                                  capture_output=True, text=True, timeout=10)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def scan(self, target_url: str, scan_timeout: int = 600, 
+             scan_type: str = "basic", **kwargs) -> List[Dict]:
+        """
+        Run SQLMap scan for SQL injection vulnerabilities
+        
+        Args:
+            target_url: Target URL to scan
+            scan_timeout: Maximum scan time in seconds
+            scan_type: Type of scan ("basic", "aggressive", "forms")
+        """
+        findings = []
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = os.path.join(temp_dir, "sqlmap_output")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            try:
+                # Base SQLMap command
+                cmd = [
+                    self.tool_command,
+                    "-u", target_url,
+                    "--batch",  # Non-interactive mode
+                    "--output-dir", output_dir,
+                    "--technique", "BEUSTQ",  # All SQL injection techniques
+                    "--timeout", "30",
+                    "--retries", "2"
+                ]
+                
+                # Add scan type specific options
+                if scan_type == "aggressive":
+                    cmd.extend(["--level", "3", "--risk", "2"])
+                elif scan_type == "forms":
+                    cmd.extend(["--forms", "--crawl", "2"])
+                else:  # basic
+                    cmd.extend(["--level", "1", "--risk", "1"])
+                
+                print(f"💉 Running SQLMap scan on {target_url}")
+                result = subprocess.run(cmd, capture_output=True, text=True, 
+                                      timeout=scan_timeout)
+                
+                # Parse SQLMap output
+                findings = self._parse_sqlmap_output(output_dir, target_url, result.stdout)
+                
+            except subprocess.TimeoutExpired:
+                print(f"SQLMap scan timed out after {scan_timeout} seconds")
+            except Exception as e:
+                print(f"SQLMap scan error: {e}")
+        
+        return findings
+    
+    def _parse_sqlmap_output(self, output_dir: str, target_url: str, stdout: str) -> List[Dict]:
+        """Parse SQLMap output for vulnerabilities"""
+        findings = []
+        
+        try:
+            # Check for SQL injection indicators in stdout
+            if "sqlmap identified the following injection point" in stdout.lower():
+                # Parse injection points
+                lines = stdout.split('\n')
+                current_finding = {}
+                
+                for line in lines:
+                    line = line.strip()
+                    
+                    if "Parameter:" in line:
+                        current_finding["parameter"] = line.split("Parameter:")[1].strip()
+                    elif "Type:" in line:
+                        current_finding["injection_type"] = line.split("Type:")[1].strip()
+                    elif "Title:" in line:
+                        current_finding["title"] = line.split("Title:")[1].strip()
+                    elif "Payload:" in line:
+                        current_finding["payload"] = line.split("Payload:")[1].strip()
+                        
+                        # Create finding when we have a complete set
+                        if all(k in current_finding for k in ["parameter", "injection_type", "title"]):
+                            findings.append({
+                                "tool": "sqlmap",
+                                "type": "sql_injection",
+                                "severity": "HIGH",
+                                "title": current_finding.get("title", "SQL Injection Vulnerability"),
+                                "description": f"SQL injection found in parameter '{current_finding.get('parameter', 'unknown')}'",
+                                "parameter": current_finding.get("parameter", ""),
+                                "injection_type": current_finding.get("injection_type", ""),
+                                "payload": current_finding.get("payload", ""),
+                                "url": target_url,
+                                "impact": "Critical - Potential data extraction, authentication bypass, or data manipulation",
+                                "recommendation": "Use parameterized queries and input validation"
+                            })
+                            current_finding = {}
+            
+            # Check log files in output directory
+            for root, dirs, files in os.walk(output_dir):
+                for file in files:
+                    if file.endswith('.log'):
+                        log_path = os.path.join(root, file)
+                        try:
+                            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                log_content = f.read()
+                                if "vulnerable" in log_content.lower():
+                                    findings.append({
+                                        "tool": "sqlmap",
+                                        "type": "sql_injection",
+                                        "severity": "HIGH",
+                                        "title": "SQL Injection Detected",
+                                        "description": "SQLMap detected potential SQL injection vulnerability",
+                                        "url": target_url,
+                                        "log_file": log_path,
+                                        "impact": "Critical - Database access vulnerability",
+                                        "recommendation": "Implement proper input validation and parameterized queries"
+                                    })
+                        except Exception as e:
+                            print(f"Error reading log file {log_path}: {e}")
+        
+        except Exception as e:
+            print(f"Error parsing SQLMap output: {e}")
+        
+        return findings
+
+
+class NmapScanner(DastScanner):
+    """Nmap Network Discovery and Security Scanner"""
+    
+    def __init__(self):
+        super().__init__()
+        self.name = "Nmap"
+        self.tool_command = "nmap"
+    
+    def is_available(self) -> bool:
+        """Check if Nmap is installed"""
+        try:
+            result = subprocess.run([self.tool_command, "--version"], 
+                                  capture_output=True, text=True, timeout=10)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def scan(self, target_url: str, scan_timeout: int = 300, 
+             scan_type: str = "basic", **kwargs) -> List[Dict]:
+        """
+        Run Nmap scan for network discovery and security assessment
+        
+        Args:
+            target_url: Target URL/IP to scan
+            scan_timeout: Maximum scan time in seconds
+            scan_type: Type of scan ("basic", "service", "vuln", "full")
+        """
+        findings = []
+        
+        # Extract hostname/IP from URL
+        from urllib.parse import urlparse
+        parsed = urlparse(target_url if target_url.startswith('http') else f'http://{target_url}')
+        target = parsed.hostname or target_url
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = os.path.join(temp_dir, "nmap_output.xml")
+            
+            try:
+                # Build Nmap command based on scan type
+                cmd = [self.tool_command, "-oX", output_file]
+                
+                if scan_type == "basic":
+                    cmd.extend(["-sS", "-F"])  # TCP SYN scan, fast mode
+                elif scan_type == "service":
+                    cmd.extend(["-sS", "-sV", "-O"])  # Service detection + OS detection
+                elif scan_type == "vuln":
+                    cmd.extend(["-sS", "-sV", "--script", "vuln"])  # Vulnerability scripts
+                elif scan_type == "full":
+                    cmd.extend(["-sS", "-sV", "-O", "-A", "--script", "default,vuln"])
+                else:
+                    cmd.extend(["-sS", "-F"])  # Default to basic
+                
+                cmd.append(target)
+                
+                print(f"🔍 Running Nmap scan on {target}")
+                result = subprocess.run(cmd, capture_output=True, text=True, 
+                                      timeout=scan_timeout)
+                
+                # Parse Nmap output
+                if os.path.exists(output_file):
+                    findings = self._parse_nmap_output(output_file, target_url)
+                
+            except subprocess.TimeoutExpired:
+                print(f"Nmap scan timed out after {scan_timeout} seconds")
+            except Exception as e:
+                print(f"Nmap scan error: {e}")
+        
+        return findings
+    
+    def _parse_nmap_output(self, output_file: str, target_url: str) -> List[Dict]:
+        """Parse Nmap XML output"""
+        findings = []
+        
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(output_file)
+            root = tree.getroot()
+            
+            for host in root.findall('host'):
+                # Get host IP
+                address = host.find('address')
+                host_ip = address.get('addr') if address is not None else 'unknown'
+                
+                # Check host status
+                status = host.find('status')
+                if status is not None and status.get('state') == 'up':
+                    
+                    # Parse open ports
+                    ports = host.find('ports')
+                    if ports is not None:
+                        for port in ports.findall('port'):
+                            port_id = port.get('portid')
+                            protocol = port.get('protocol')
+                            
+                            state = port.find('state')
+                            service = port.find('service')
+                            
+                            if state is not None and state.get('state') == 'open':
+                                service_name = service.get('name') if service is not None else 'unknown'
+                                service_version = service.get('version') if service is not None else ''
+                                
+                                # Determine severity based on service
+                                severity = self._assess_port_risk(port_id, service_name)
+                                
+                                findings.append({
+                                    "tool": "nmap",
+                                    "type": "open_port",
+                                    "severity": severity,
+                                    "title": f"Open Port {port_id}/{protocol}",
+                                    "description": f"Open {service_name} service on port {port_id}",
+                                    "host": host_ip,
+                                    "port": port_id,
+                                    "protocol": protocol,
+                                    "service": service_name,
+                                    "version": service_version,
+                                    "url": target_url,
+                                    "impact": f"Exposed {service_name} service may be vulnerable to attacks",
+                                    "recommendation": "Review if this service needs to be publicly accessible"
+                                })
+                
+                # Parse script results (vulnerabilities)
+                hostscript = host.find('hostscript')
+                if hostscript is not None:
+                    for script in hostscript.findall('script'):
+                        script_id = script.get('id')
+                        script_output = script.get('output')
+                        
+                        if 'vuln' in script_id.lower() or 'exploit' in script_output.lower():
+                            findings.append({
+                                "tool": "nmap",
+                                "type": "vulnerability",
+                                "severity": "HIGH",
+                                "title": f"Vulnerability detected: {script_id}",
+                                "description": script_output,
+                                "host": host_ip,
+                                "script": script_id,
+                                "url": target_url,
+                                "impact": "Potential security vulnerability detected",
+                                "recommendation": "Investigate and remediate the identified vulnerability"
+                            })
+                            
+        except Exception as e:
+            print(f"Error parsing Nmap output: {e}")
+        
+        return findings
+    
+    def _assess_port_risk(self, port: str, service: str) -> str:
+        """Assess risk level based on port and service"""
+        high_risk_ports = ['21', '22', '23', '25', '53', '80', '110', '143', '443', '993', '995']
+        high_risk_services = ['ftp', 'ssh', 'telnet', 'smtp', 'dns', 'http', 'https', 'pop3', 'imap']
+        
+        if port in high_risk_ports or service.lower() in high_risk_services:
+            return "MEDIUM"
+        else:
+            return "LOW"
+
+
 # Integration with existing DefenSys architecture
 class DastScannerManager:
     """Manager for all DAST scanners"""
@@ -324,7 +618,9 @@ class DastScannerManager:
         self.scanners = {
             "zap": ZapScanner(),
             "nuclei": NucleiScanner(), 
-            "nikto": NiktoScanner()
+            "nikto": NiktoScanner(),
+            "sqlmap": SqlmapScanner(),
+            "nmap": NmapScanner()
         }
     
     def get_available_scanners(self) -> Dict[str, bool]:

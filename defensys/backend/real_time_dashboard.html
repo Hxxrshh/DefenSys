@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DefenSys - Real-Time Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .scan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .scan-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 5px solid #007bff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .scan-card.completed {
+            border-left-color: #28a745;
+        }
+
+        .scan-card.failed {
+            border-left-color: #dc3545;
+        }
+
+        .scan-card.running {
+            border-left-color: #ffc107;
+            animation: running-glow 2s infinite;
+        }
+
+        @keyframes running-glow {
+            0%, 100% { box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            50% { box-shadow: 0 4px 20px rgba(255, 193, 7, 0.3); }
+        }
+
+        .scan-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .scan-id {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #2c3e50;
+        }
+
+        .scan-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .scan-status.running {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .scan-status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .scan-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .scan-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #6c757d;
+        }
+
+        .detail-value {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .vulnerability-counter {
+            background: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .vulnerability-counter.zero {
+            background: #28a745;
+        }
+
+        .activity-log {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .activity-log h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .log-entry {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+            font-size: 0.9em;
+        }
+
+        .log-entry.error {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .log-entry.success {
+            border-left-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .log-entry.warning {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+
+        .log-timestamp {
+            color: #6c757d;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        .test-controls {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .test-controls h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #0056b3;
+        }
+
+        .btn.success {
+            background: #28a745;
+        }
+
+        .btn.success:hover {
+            background: #1e7e34;
+        }
+
+        .btn.danger {
+            background: #dc3545;
+        }
+
+        .btn.danger:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ DefenSys Real-Time Monitoring</h1>
+            <p>Live security scan monitoring with RabbitMQ and WebSockets</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="connection-status">
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="connectionText">Connecting to DefenSys...</span>
+            </div>
+            <div>
+                <span>Active Scans: <strong id="activeScansCount">0</strong></span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Test Controls -->
+            <div class="test-controls">
+                <h3>🧪 Test Real-Time Updates</h3>
+                <button class="btn" onclick="simulateScanStart()">Start Test Scan</button>
+                <button class="btn success" onclick="simulateProgress()">Simulate Progress</button>
+                <button class="btn danger" onclick="simulateVulnerability()">Add Vulnerability</button>
+                <button class="btn" onclick="simulateCompletion()">Complete Scan</button>
+            </div>
+
+            <!-- Active Scans Grid -->
+            <div class="scan-grid" id="scanGrid">
+                <!-- Scan cards will be added dynamically -->
+            </div>
+
+            <!-- Activity Log -->
+            <div class="activity-log">
+                <h3>📊 Real-Time Activity Log</h3>
+                <div id="activityLog">
+                    <div class="log-entry">
+                        <div class="log-timestamp">Waiting for events...</div>
+                        <div>Real-time monitoring system ready</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let activeScans = new Map();
+        let testScanId = 1000;
+
+        // Initialize WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            try {
+                websocket = new WebSocket(wsUrl);
+                
+                websocket.onopen = function(event) {
+                    updateConnectionStatus(true);
+                    logActivity('Connected to DefenSys real-time monitoring', 'success');
+                };
+                
+                websocket.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleScanUpdate(message);
+                    } catch (e) {
+                        console.error('Failed to parse WebSocket message:', e);
+                    }
+                };
+                
+                websocket.onclose = function(event) {
+                    updateConnectionStatus(false);
+                    logActivity('Disconnected from DefenSys. Attempting to reconnect...', 'error');
+                    
+                    // Attempt to reconnect after 3 seconds
+                    setTimeout(connectWebSocket, 3000);
+                };
+                
+                websocket.onerror = function(error) {
+                    logActivity('WebSocket connection error', 'error');
+                };
+                
+            } catch (e) {
+                updateConnectionStatus(false);
+                logActivity('Failed to connect to DefenSys WebSocket', 'error');
+                setTimeout(connectWebSocket, 5000);
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            
+            if (connected) {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected to DefenSys';
+            } else {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        // Handle scan update messages
+        function handleScanUpdate(message) {
+            const scanId = message.scan_id;
+            
+            // Update active scans
+            activeScans.set(scanId, message);
+            
+            // Update UI
+            updateScanCard(message);
+            updateActiveScansCount();
+            
+            // Log activity
+            logActivity(message.message, getLogType(message.message_type));
+        }
+
+        // Update or create scan card
+        function updateScanCard(scan) {
+            const scanGrid = document.getElementById('scanGrid');
+            let scanCard = document.getElementById(`scan-${scan.scan_id}`);
+            
+            if (!scanCard) {
+                scanCard = createScanCard(scan);
+                scanGrid.appendChild(scanCard);
+            }
+            
+            // Update scan card content
+            updateScanCardContent(scanCard, scan);
+        }
+
+        // Create new scan card
+        function createScanCard(scan) {
+            const card = document.createElement('div');
+            card.className = `scan-card ${scan.status}`;
+            card.id = `scan-${scan.scan_id}`;
+            
+            card.innerHTML = `
+                <div class="scan-header">
+                    <div class="scan-id">Scan #${scan.scan_id}</div>
+                    <div class="scan-status ${scan.status}">${scan.status}</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${scan.progress * 100}%"></div>
+                </div>
+                <div class="scan-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Progress:</span>
+                        <span class="detail-value">${Math.round(scan.progress * 100)}%</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Scanner:</span>
+                        <span class="detail-value">${scan.current_scanner || 'N/A'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Vulnerabilities:</span>
+                        <span class="vulnerability-counter ${scan.vulnerabilities_found === 0 ? 'zero' : ''}">${scan.vulnerabilities_found}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Time Left:</span>
+                        <span class="detail-value">${scan.estimated_time_remaining ? `${scan.estimated_time_remaining}s` : 'N/A'}</span>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Update scan card content
+        function updateScanCardContent(card, scan) {
+            card.className = `scan-card ${scan.status}`;
+            
+            // Update progress bar
+            const progressFill = card.querySelector('.progress-fill');
+            progressFill.style.width = `${scan.progress * 100}%`;
+            
+            // Update status
+            const statusElement = card.querySelector('.scan-status');
+            statusElement.className = `scan-status ${scan.status}`;
+            statusElement.textContent = scan.status;
+            
+            // Update details
+            const details = card.querySelectorAll('.detail-value');
+            details[0].textContent = `${Math.round(scan.progress * 100)}%`;
+            details[1].textContent = scan.current_scanner || 'N/A';
+            
+            const vulnCounter = card.querySelector('.vulnerability-counter');
+            vulnCounter.textContent = scan.vulnerabilities_found;
+            vulnCounter.className = `vulnerability-counter ${scan.vulnerabilities_found === 0 ? 'zero' : ''}`;
+            
+            details[3].textContent = scan.estimated_time_remaining ? `${scan.estimated_time_remaining}s` : 'N/A';
+        }
+
+        // Update active scans count
+        function updateActiveScansCount() {
+            const activeCount = Array.from(activeScans.values())
+                .filter(scan => scan.status === 'running').length;
+            document.getElementById('activeScansCount').textContent = activeCount;
+        }
+
+        // Log activity
+        function logActivity(message, type = 'info') {
+            const activityLog = document.getElementById('activityLog');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `
+                <div class="log-timestamp">${timestamp}</div>
+                <div>${message}</div>
+            `;
+            
+            activityLog.insertBefore(logEntry, activityLog.firstChild);
+            
+            // Keep only last 50 entries
+            while (activityLog.children.length > 50) {
+                activityLog.removeChild(activityLog.lastChild);
+            }
+        }
+
+        // Get log type from message type
+        function getLogType(messageType) {
+            switch (messageType) {
+                case 'scan_completed': return 'success';
+                case 'scan_failed': return 'error';
+                case 'vulnerability_found': return 'warning';
+                default: return 'info';
+            }
+        }
+
+        // Test functions
+        function simulateScanStart() {
+            const testScan = {
+                message_type: 'scan_started',
+                scan_id: testScanId++,
+                project_id: 1,
+                status: 'running',
+                progress: 0.0,
+                current_scanner: 'bandit',
+                vulnerabilities_found: 0,
+                estimated_time_remaining: 120,
+                message: 'Started security scan with 3 scanners',
+                timestamp: new Date().toISOString()
+            };
+            
+            handleScanUpdate(testScan);
+        }
+
+        function simulateProgress() {
+            const lastScan = Array.from(activeScans.values())
+                .find(scan => scan.status === 'running');
+            
+            if (lastScan) {
+                const updatedScan = {
+                    ...lastScan,
+                    progress: Math.min(lastScan.progress + 0.2, 1.0),
+                    current_scanner: ['bandit', 'semgrep', 'trivy'][Math.floor(Math.random() * 3)],
+                    estimated_time_remaining: Math.max(lastScan.estimated_time_remaining - 30, 0),
+                    message: 'Scan progress updated',
+                    timestamp: new Date().toISOString()
+                };
+                
+                handleScanUpdate(updatedScan);
+            }
+        }
+
+        function simulateVulnerability() {
+            const lastScan = Array.from(activeScans.values())
+                .find(scan => scan.status === 'running');
+            
+            if (lastScan) {
+                const updatedScan = {
+                    ...lastScan,
+                    vulnerabilities_found: lastScan.vulnerabilities_found + 1,
+                    message: 'Found HIGH severity vulnerability',
+                    timestamp: new Date().toISOString()
+                };
+                
+                handleScanUpdate(updatedScan);
+            }
+        }
+
+        function simulateCompletion() {
+            const lastScan = Array.from(activeScans.values())
+                .find(scan => scan.status === 'running');
+            
+            if (lastScan) {
+                const updatedScan = {
+                    ...lastScan,
+                    status: 'completed',
+                    progress: 1.0,
+                    message: `Scan completed! Found ${lastScan.vulnerabilities_found} issues`,
+                    timestamp: new Date().toISOString()
+                };
+                
+                handleScanUpdate(updatedScan);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+            logActivity('DefenSys Real-Time Monitoring Dashboard loaded', 'success');
+        });
+    </script>
+</body>
+</html>

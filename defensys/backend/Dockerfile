@@ -35,6 +35,30 @@ RUN pip install semgrep
 # Install Snyk CLI
 RUN npm install -g snyk
 
+# Install additional security tools
+RUN pip install safety gitleaks-python yara-python
+RUN curl -L https://github.com/zricethezav/gitleaks/releases/download/v8.16.1/gitleaks_8.16.1_linux_x64.tar.gz | tar -xz -C /usr/local/bin
+RUN chmod +x /usr/local/bin/gitleaks
+
+# Install OWASP ZAP (for DAST)
+RUN wget -q -O - https://github.com/zaproxy/zaproxy/releases/download/v2.12.0/ZAP_2.12.0_Linux.tar.gz | tar -xz -C /opt
+RUN ln -s /opt/ZAP_2.12.0/zap.sh /usr/local/bin/zap.sh
+
+# Install Nuclei
+RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v2.9.15/nuclei_2.9.15_linux_amd64.zip -o nuclei.zip \
+    && unzip nuclei.zip -d /usr/local/bin \
+    && rm nuclei.zip \
+    && chmod +x /usr/local/bin/nuclei
+
+# Install Nikto
+RUN apt-get update && apt-get install -y nikto && rm -rf /var/lib/apt/lists/*
+
+# Install SQLMap
+RUN pip install sqlmap
+
+# Install Nmap
+RUN apt-get update && apt-get install -y nmap && rm -rf /var/lib/apt/lists/*
+
 # Copy the application code
 COPY ./api /app/api
 COPY ./scanners /app/scanners

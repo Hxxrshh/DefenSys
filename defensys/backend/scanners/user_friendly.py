@@ -175,7 +175,7 @@ class UserFriendlyScanManager:
                     ProjectType.JAVASCRIPT_APP,
                     ProjectType.PYTHON_APP
                 ],
-                technical_tools=["zap", "nuclei", "nikto"],
+                technical_tools=["zap", "nuclei", "nikto", "nmap"],
                 estimated_time="10-30 minutes",
                 complexity="Advanced"
             ),
@@ -190,7 +190,7 @@ class UserFriendlyScanManager:
                     ProjectType.PYTHON_APP,
                     ProjectType.JAVASCRIPT_APP
                 ],
-                technical_tools=["zap", "nuclei"],
+                technical_tools=["zap", "nuclei", "sqlmap"],
                 estimated_time="5-20 minutes",
                 complexity="Moderate"
             ),
@@ -205,7 +205,7 @@ class UserFriendlyScanManager:
                     ProjectType.CONTAINER_APP,
                     ProjectType.GENERAL_PROJECT
                 ],
-                technical_tools=["zap", "nuclei", "nikto", "sqlmap"],
+                technical_tools=["zap", "nuclei", "nikto", "sqlmap", "nmap"],
                 estimated_time="20-60 minutes",
                 complexity="Advanced"
             )
@@ -398,7 +398,8 @@ class UserFriendlyScanManager:
             "zap": "OWASP ZAP (Web App Scanner)",
             "nuclei": "Nuclei (Template-based Scanner)",
             "nikto": "Nikto (Web Server Scanner)",
-            "sqlmap": "SQLMap (SQL Injection Tester)"
+            "sqlmap": "SQLMap (SQL Injection Tester)",
+            "nmap": "Nmap (Network Discovery)"
         }
         
         display_tools = [tool_display_names.get(tool, tool.title()) for tool in tools]

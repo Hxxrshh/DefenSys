@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Depends, HTTPException, BackgroundTasks
+from fastapi import Depends, HTTPException, BackgroundTasks, WebSocket
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -10,6 +10,12 @@ import os
 from . import crud, models, schemas
 from .database import SessionLocal, engine, get_db
 from scanners.executor import run_scan_for_project
+from .real_time_monitoring import (
+    real_time_monitor, 
+    websocket_manager, 
+    websocket_endpoint,
+    initialize_real_time_monitoring
+)
 
 app = FastAPI(title="DefenSys API")
 
@@ -27,6 +33,18 @@ app.add_middleware(
 )
 
 models.Base.metadata.create_all(bind=engine)
+
+# WebSocket endpoint for real-time updates
+@app.websocket("/ws")
+async def websocket_real_time_updates(websocket: WebSocket):
+    """WebSocket endpoint for real-time scan updates"""
+    await websocket_endpoint(websocket)
+
+# Initialize real-time monitoring on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    await initialize_real_time_monitoring()
 
 class ScanRequest(BaseModel):
     repository_url: str
@@ -183,8 +201,9 @@ def get_scan_recommendations_for_project(request: dict):
     }
 
 def run_user_friendly_scan(scan_id: int, repository_url: str, scan_config: dict):
-    """Run scan using user-friendly configuration"""
+    """Run scan using user-friendly configuration with real-time updates"""
     from scanners.executor import run_scan_for_project
+    import time
     
     # Create a new database session for the background task
     db = SessionLocal()
@@ -198,37 +217,81 @@ def run_user_friendly_scan(scan_id: int, repository_url: str, scan_config: dict)
         print(f"⏱️ Estimated time: {scan_config['display_info']['estimated_time']}")
         print(f"🔧 Tools to run: {', '.join(scan_config['display_info']['tools_to_run'])}")
         
-        # Run the scan with optimized configuration
-        scan_results = run_scan_for_project(
-            repository_url=repository_url,
-            scan_types=scan_types,
-            **execution_config
+        # Get project ID
+        scan = crud.get_scan(db, scan_id)
+        project_id = scan.project_id if scan else 0
+        
+        # Publish scan started event
+        real_time_monitor.publish_scan_started(
+            scan_id, 
+            project_id, 
+            scan_config['display_info']['tools_to_run']
         )
+        
+        start_time = time.time()
+        total_vulnerabilities = 0
+        
+        # Run the scan with optimized configuration and progress tracking
+        try:
+            scan_results = run_scan_for_project(
+                repository_url=repository_url,
+                scan_types=scan_types,
+                progress_callback=lambda progress, scanner: real_time_monitor.publish_scan_progress(
+                    scan_id, project_id, progress, scanner, total_vulnerabilities
+                ),
+                **execution_config
+            )
 
-        # Process and save results
-        if scan_results:
-            vulnerability_count = 0
-            for result in scan_results:
-                vuln_data = schemas.VulnerabilityCreate(
-                    scan_id=scan_id,
-                    type=result.get("scanner_type", result.get("type", "unknown")),
-                    severity=result.get("severity", "UNKNOWN"),
-                    description=result.get("description", result.get("title", result.get("message", "N/A"))),
-                    file_path=result.get("file_path", result.get("file", result.get("filename", "N/A"))),
-                    line_number=result.get("line", result.get("line_number", result.get("start_line"))),
+            # Process and save results
+            if scan_results:
+                for result in scan_results:
+                    # Publish vulnerability found event
+                    real_time_monitor.publish_vulnerability_found(scan_id, project_id, result)
+                    
+                    vuln_data = schemas.VulnerabilityCreate(
+                        scan_id=scan_id,
+                        type=result.get("scanner_type", result.get("type", "unknown")),
+                        severity=result.get("severity", "UNKNOWN"),
+                        description=result.get("description", result.get("title", result.get("message", "N/A"))),
+                        file_path=result.get("file_path", result.get("file", result.get("filename", "N/A"))),
+                        line_number=result.get("line", result.get("line_number", result.get("start_line"))),
+                    )
+                    crud.create_vulnerability(db, vuln_data)
+                    total_vulnerabilities += 1
+                
+                execution_time = time.time() - start_time
+                print(f"✅ Scan completed! Found {total_vulnerabilities} security findings")
+                crud.update_scan_status(db, scan_id, "completed")
+                
+                # Publish scan completed event
+                real_time_monitor.publish_scan_completed(
+                    scan_id, project_id, total_vulnerabilities, execution_time
                 )
-                crud.create_vulnerability(db, vuln_data)
-                vulnerability_count += 1
+            else:
+                execution_time = time.time() - start_time
+                print("✅ Scan completed with no issues found")
+                crud.update_scan_status(db, scan_id, "completed")
+                
+                # Publish scan completed event
+                real_time_monitor.publish_scan_completed(
+                    scan_id, project_id, 0, execution_time
+                )
+                
+        except Exception as scan_error:
+            execution_time = time.time() - start_time
+            error_message = str(scan_error)
+            print(f"❌ Scan failed: {error_message}")
+            crud.update_scan_status(db, scan_id, "failed")
             
-            print(f"✅ Scan completed! Found {vulnerability_count} security findings")
-            crud.update_scan_status(db, scan_id, "completed")
-        else:
-            print("✅ Scan completed with no issues found")
-            crud.update_scan_status(db, scan_id, "completed")
+            # Publish scan failed event
+            real_time_monitor.publish_scan_failed(scan_id, project_id, error_message)
             
     except Exception as e:
         print(f"❌ Scan failed: {str(e)}")
         crud.update_scan_status(db, scan_id, "failed")
+        
+        # Publish scan failed event
+        real_time_monitor.publish_scan_failed(scan_id, project_id, str(e))
     finally:
         db.close()
 
@@ -317,7 +380,69 @@ async def serve_user_friendly_scanner():
     else:
         raise HTTPException(status_code=404, detail="Scanner interface not found")
 
+@app.get("/real_time_dashboard.html")
+async def serve_real_time_dashboard():
+    """Serve the real-time monitoring dashboard"""
+    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "real_time_dashboard.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    else:
+        raise HTTPException(status_code=404, detail="Real-time dashboard not found")
+
+@app.get("/api/monitoring/status")
+async def get_monitoring_status():
+    """Get real-time monitoring system status"""
+    try:
+        # Check RabbitMQ connection
+        rabbitmq_status = real_time_monitor.rabbitmq.connection is not None
+        
+        # Check WebSocket connections
+        websocket_connections = len(websocket_manager.active_connections)
+        
+        # Get system stats
+        from scanners.intelligent_scheduler import IntelligentScanEngine
+        
+        return {
+            "status": "healthy",
+            "rabbitmq_connected": rabbitmq_status,
+            "websocket_connections": websocket_connections,
+            "features": {
+                "real_time_updates": True,
+                "progress_tracking": True,
+                "vulnerability_alerts": True,
+                "system_monitoring": True
+            },
+            "endpoints": {
+                "websocket": "/ws",
+                "dashboard": "/real_time_dashboard.html",
+                "scanner": "/user_friendly_scanner.html"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "rabbitmq_connected": False,
+            "websocket_connections": 0
+        }
+
 @app.get("/")
 async def root():
-    """Root endpoint with basic info"""
-    return {"message": "DefenSys API - User-Friendly Security Scanner", "scanner_ui": "/user_friendly_scanner.html"}
+    """Root endpoint with basic info and real-time monitoring links"""
+    return {
+        "message": "DefenSys API - User-Friendly Security Scanner with Real-Time Monitoring", 
+        "interfaces": {
+            "scanner_ui": "/user_friendly_scanner.html",
+            "real_time_dashboard": "/real_time_dashboard.html",
+            "monitoring_status": "/api/monitoring/status"
+        },
+        "websocket": "/ws",
+        "features": [
+            "Real-time scan progress tracking",
+            "Live vulnerability alerts",
+            "WebSocket updates",
+            "RabbitMQ message broker",
+            "User-friendly scan interface",
+            "Enterprise-grade performance"
+        ]
+    }

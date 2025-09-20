@@ -4,6 +4,7 @@ from .secret import SecretScanner
 from .snyk import SnykScanner
 from .trivy import TrivyScanner
 from .semgrep import SemgrepScanner
+from .additional import GitLeaksScanner, SafetyScanner, NpmAuditScanner, YarnAuditScanner
 from typing import Dict, List, Optional
 import asyncio
 import concurrent.futures
@@ -23,7 +24,18 @@ class ScannerManager:
             "semgrep": SemgrepScanner(),
         }
         
-        self.all_scanners = {**self.basic_scanners, **self.advanced_scanners}
+        self.additional_scanners = {
+            "gitleaks": GitLeaksScanner(),
+            "safety": SafetyScanner(),
+            "npm_audit": NpmAuditScanner(),
+            "yarn_audit": YarnAuditScanner(),
+        }
+        
+        self.all_scanners = {
+            **self.basic_scanners, 
+            **self.advanced_scanners,
+            **self.additional_scanners
+        }
 
     def run_scan(self, scan_type: str, path: str, **kwargs) -> List[dict]:
         """

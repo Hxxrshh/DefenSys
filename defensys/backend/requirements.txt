@@ -1,0 +1,15 @@
+fastapi
+uvicorn>=0.24.0
+sqlalchemy
+psycopg2-binary
+bandit
+pip-audit
+pytest
+httpx
+pydantic>=2.0
+requests
+
+# Advanced security scanners (install separately)
+# snyk - npm install -g snyk  
+# trivy - https://aquasecurity.github.io/trivy/
+# semgrep - pip install semgrep

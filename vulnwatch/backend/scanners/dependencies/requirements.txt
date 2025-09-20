@@ -1,6 +1,0 @@
-pika
-safety
-pip-audit
-requests
-packaging
-cyclonedx-bom

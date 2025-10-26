@@ -1,0 +1,98 @@
+.tooltip-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.custom-tooltip {
+  position: absolute;
+  z-index: 1000;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #1a1f2e 0%, #151a27 100%);
+  border: 2px solid #00d9ff;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+  white-space: nowrap;
+  animation: tooltipFadeIn 0.2s ease;
+  pointer-events: none;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tooltip-top {
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tooltip-bottom {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.tooltip-left {
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tooltip-right {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tooltip-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.tooltip-top .tooltip-arrow {
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px 8px 0 8px;
+  border-color: #00d9ff transparent transparent transparent;
+}
+
+.tooltip-bottom .tooltip-arrow {
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 8px 8px 8px;
+  border-color: transparent transparent #00d9ff transparent;
+}
+
+.tooltip-left .tooltip-arrow {
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 8px 0 8px 8px;
+  border-color: transparent transparent transparent #00d9ff;
+}
+
+.tooltip-right .tooltip-arrow {
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 8px 8px 8px 0;
+  border-color: transparent #00d9ff transparent transparent;
+}
+
+.tooltip-content {
+  color: #e4e6eb;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  font-weight: 500;
+}

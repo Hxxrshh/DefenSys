@@ -1,0 +1,144 @@
+.scan-form {
+  padding: 1.5rem 0;
+}
+
+.scanner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.2rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .scanner-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scanner-card {
+  position: relative;
+}
+
+.scanner-card label {
+  text-align: left;
+  padding: 1.2rem;
+  height: 100%;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 12px;
+  border-width: 2px;
+  background: linear-gradient(135deg, #1a1f2e 0%, #151a27 100%);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.scanner-card label::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #00d9ff, #06ffa5);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.scanner-card label:hover:not(:disabled) {
+  transform: translateY(-4px) translateX(4px);
+  box-shadow: 0 8px 24px rgba(0, 217, 255, 0.3);
+  border-color: #00d9ff;
+}
+
+.scanner-card label:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.scanner-card .btn-check:checked + label {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.2) 0%, rgba(6, 255, 165, 0.1) 100%);
+  color: white;
+  border-color: #00d9ff;
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.4);
+}
+
+.scanner-card .btn-check:checked + label::before {
+  opacity: 1;
+}
+
+.scanner-card .btn-check:checked + label .text-muted {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.scanner-card label.recommended {
+  border-color: #00d9ff;
+  border-width: 2px;
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+}
+
+.scanner-card label:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.form-label {
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+  font-size: 1rem;
+  color: #e4e6eb;
+  letter-spacing: 0.3px;
+}
+
+.form-text {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  color: #8892a6;
+  line-height: 1.5;
+}
+
+.btn-group {
+  margin-bottom: 1.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-group .btn {
+  font-weight: 600;
+  padding: 12px 20px;
+}
+
+.alert {
+  border-radius: 12px;
+  border-width: 2px;
+  padding: 16px 20px;
+  font-weight: 500;
+}
+
+/* Additional spacing improvements */
+.mb-3 {
+  margin-bottom: 1.5rem !important;
+}
+
+.d-flex.gap-2 {
+  gap: 12px;
+}
+
+/* Scanner card badge improvements */
+.scanner-card .badge {
+  font-size: 0.7rem;
+  padding: 4px 10px;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+.scanner-card strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #e4e6eb;
+}
+
+.scanner-card small {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}

@@ -1,0 +1,66 @@
+.navbar {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
+  border-bottom: 2px solid #00d9ff;
+}
+
+.navbar-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #00d9ff !important;
+  text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+}
+
+.navbar-brand i {
+  font-size: 1.75rem;
+  color: #00d9ff;
+  filter: drop-shadow(0 0 5px rgba(0, 217, 255, 0.8));
+}
+
+.nav-link {
+  font-weight: 500;
+  padding: 0.5rem 1rem !important;
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  margin: 0 0.25rem;
+  color: #e4e6eb !important;
+}
+
+.nav-link:hover {
+  background-color: rgba(0, 217, 255, 0.1);
+  color: #00d9ff !important;
+}
+
+.nav-link.active {
+  background-color: rgba(0, 217, 255, 0.2);
+  font-weight: 600;
+  color: #00d9ff !important;
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+}
+
+.nav-link i {
+  font-size: 1.1rem;
+}
+
+.navbar-text .badge {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(135deg, #06ffa5 0%, #00cc88 100%);
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(6, 255, 165, 0.4);
+}
+
+.navbar-dark {
+  background-color: #1a1f2e !important;
+}
+
+.navbar-toggler {
+  border-color: #00d9ff;
+}
+
+.navbar-toggler-icon {
+  filter: invert(1);
+}

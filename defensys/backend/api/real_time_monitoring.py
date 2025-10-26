@@ -173,7 +173,7 @@ class WebSocketManager:
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
-        self.rabbitmq = RabbitMQManager()
+        self.rabbitmq = None  # Disabled RabbitMQ - using direct WebSocket only
         self.running = False
     
     async def connect(self, websocket: WebSocket):
@@ -220,33 +220,10 @@ class WebSocketManager:
             logger.debug(f"📤 Broadcasted to {len(self.active_connections)} connections")
     
     async def start_rabbitmq_consumer(self):
-        """Start consuming RabbitMQ messages in background"""
-        self.running = True
-        
-        def message_callback(ch, method, properties, body):
-            """Callback for RabbitMQ messages"""
-            try:
-                message_data = json.loads(body)
-                message = ScanMessage(**message_data)
-                
-                # Schedule broadcast to WebSocket clients
-                asyncio.create_task(self.broadcast(message))
-                
-            except Exception as e:
-                logger.error(f"❌ Error processing RabbitMQ message: {e}")
-        
-        # Run RabbitMQ consumer in thread
-        import threading
-        
-        def consume_in_thread():
-            if self.rabbitmq.connect():
-                self.rabbitmq.consume_messages(message_callback)
-        
-        consumer_thread = threading.Thread(target=consume_in_thread)
-        consumer_thread.daemon = True
-        consumer_thread.start()
-        
-        logger.info("🚀 Started RabbitMQ consumer for WebSocket broadcasting")
+        """Start consuming RabbitMQ messages in background - DISABLED"""
+        # RabbitMQ integration disabled - using direct WebSocket broadcasting
+        logger.info("ℹ️  RabbitMQ consumer disabled - using direct WebSocket updates")
+        return
 
 class RealTimeMonitor:
     """
@@ -254,93 +231,48 @@ class RealTimeMonitor:
     """
     
     def __init__(self):
-        self.rabbitmq = RabbitMQManager()
+        self.rabbitmq = None  # Disabled RabbitMQ
         self.websocket_manager = WebSocketManager()
     
     def publish_scan_started(self, scan_id: int, project_id: int, scanners: List[str]):
         """Publish scan started event"""
-        message = ScanMessage(
-            message_type=MessageType.SCAN_STARTED,
-            scan_id=scan_id,
-            project_id=project_id,
-            status=ScanStatus.RUNNING,
-            progress=0.0,
-            message=f"Started security scan with {len(scanners)} scanners",
-            details={"scanners": scanners}
-        )
-        self.rabbitmq.publish_message(message, "scan.started")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.info(f"📡 Scan {scan_id} started with {len(scanners)} scanners")
+        pass
     
     def publish_scan_progress(self, scan_id: int, project_id: int, progress: float, 
                             current_scanner: str, vulnerabilities_found: int = 0,
                             estimated_time_remaining: int = None):
         """Publish scan progress update"""
-        message = ScanMessage(
-            message_type=MessageType.SCAN_PROGRESS,
-            scan_id=scan_id,
-            project_id=project_id,
-            status=ScanStatus.RUNNING,
-            progress=progress,
-            current_scanner=current_scanner,
-            vulnerabilities_found=vulnerabilities_found,
-            estimated_time_remaining=estimated_time_remaining,
-            message=f"Scanning with {current_scanner}... {progress*100:.1f}% complete"
-        )
-        self.rabbitmq.publish_message(message, "scan.progress")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.debug(f"📊 Scan {scan_id} progress: {progress*100:.1f}% - {current_scanner}")
+        pass
     
     def publish_vulnerability_found(self, scan_id: int, project_id: int, 
                                   vulnerability: Dict[str, Any]):
         """Publish vulnerability found event"""
-        message = ScanMessage(
-            message_type=MessageType.VULNERABILITY_FOUND,
-            scan_id=scan_id,
-            project_id=project_id,
-            status=ScanStatus.RUNNING,
-            progress=0.0,  # Will be updated by progress messages
-            message=f"Found {vulnerability.get('severity', 'unknown')} vulnerability",
-            details=vulnerability
-        )
-        self.rabbitmq.publish_message(message, "scan.vulnerability")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.info(f"🔍 Vulnerability found in scan {scan_id}")
+        pass
     
     def publish_scan_completed(self, scan_id: int, project_id: int, 
                              total_vulnerabilities: int, execution_time: float):
         """Publish scan completed event"""
-        message = ScanMessage(
-            message_type=MessageType.SCAN_COMPLETED,
-            scan_id=scan_id,
-            project_id=project_id,
-            status=ScanStatus.COMPLETED,
-            progress=1.0,
-            vulnerabilities_found=total_vulnerabilities,
-            message=f"Scan completed! Found {total_vulnerabilities} issues in {execution_time:.1f}s",
-            details={"execution_time": execution_time}
-        )
-        self.rabbitmq.publish_message(message, "scan.completed")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.info(f"✅ Scan {scan_id} completed: {total_vulnerabilities} issues in {execution_time:.1f}s")
+        pass
     
     def publish_scan_failed(self, scan_id: int, project_id: int, error_message: str):
         """Publish scan failed event"""
-        message = ScanMessage(
-            message_type=MessageType.SCAN_FAILED,
-            scan_id=scan_id,
-            project_id=project_id,
-            status=ScanStatus.FAILED,
-            progress=0.0,
-            message=f"Scan failed: {error_message}",
-            details={"error": error_message}
-        )
-        self.rabbitmq.publish_message(message, "scan.failed")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.error(f"❌ Scan {scan_id} failed: {error_message}")
+        pass
     
     def publish_system_status(self, status: Dict[str, Any]):
         """Publish system status update"""
-        message = ScanMessage(
-            message_type=MessageType.SYSTEM_STATUS,
-            scan_id=0,  # System-wide message
-            project_id=0,
-            status=ScanStatus.RUNNING,
-            progress=0.0,
-            message="System status update",
-            details=status
-        )
-        self.rabbitmq.publish_message(message, "system.status")
+        # RabbitMQ disabled - using direct WebSocket broadcasting
+        logger.debug(f"ℹ️  System status update")
+        pass
 
 # Global instance
 real_time_monitor = RealTimeMonitor()
@@ -374,17 +306,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def initialize_real_time_monitoring():
     """Initialize real-time monitoring system"""
     logger.info("🚀 Initializing real-time monitoring system...")
-    
-    # Connect to RabbitMQ
-    if real_time_monitor.rabbitmq.connect():
-        logger.info("✅ RabbitMQ connected successfully")
-    else:
-        logger.error("❌ Failed to connect to RabbitMQ")
-        return False
-    
-    # Start WebSocket consumer
-    await websocket_manager.start_rabbitmq_consumer()
-    
+    logger.info("ℹ️  RabbitMQ integration disabled - using direct WebSocket updates")
     logger.info("✅ Real-time monitoring system initialized")
     return True
 

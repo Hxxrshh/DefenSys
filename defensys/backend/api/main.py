@@ -16,12 +16,21 @@ from .real_time_monitoring import (
     websocket_endpoint,
     initialize_real_time_monitoring
 )
+# Import Phase 1 routes
+from .routes import router as phase1_router
 
-app = FastAPI(title="DefenSys API")
+app = FastAPI(
+    title="DefenSys API - Phase 1",
+    description="Complete security scanning platform with network and web vulnerability detection",
+    version="1.0.0"
+)
 
 origins = [
     "http://localhost",
     "http://localhost:8080",
+    "http://localhost:3000",
+    "http://frontend",
+    "http://defensys_frontend",
 ]
 
 app.add_middleware(
@@ -31,6 +40,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Phase 1 API routes
+app.include_router(phase1_router, prefix="/api/v1")
 
 models.Base.metadata.create_all(bind=engine)
 

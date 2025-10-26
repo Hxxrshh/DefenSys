@@ -7,7 +7,6 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 ### 🛠️ Architecture Components
 
 ```
-┌─────────────────────────────────────────────────┐
 │                   DefenSys Platform             │
 ├─────────────────────────────────────────────────┤
 │  Frontend (React + Nginx)     :3000             │
@@ -15,6 +14,14 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 │  ├── Scan Results Dashboard                     │
 │  └── Real-time Progress Tracking               │
 ├─────────────────────────────────────────────────┤
+### Expected Result
+When services are running locally (or reachable via configured hosts), you should be able to:
+
+- Reach the frontend at http://localhost:3000 (if running the frontend dev server)
+- Reach the API at http://localhost:8000 and open the OpenAPI docs at /docs
+- Connect to your database on the host/port configured in `DATABASE_URL`
+
+For service-specific status and logs, consult the local service manager you used to start them (systemd, Docker, or the process running the service).
 │  API Backend (FastAPI)        :8000             │
 │  ├── 13 Security Scanners                      │
 │  ├── User-friendly Abstraction                 │
@@ -26,6 +33,17 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 │  └── User Preferences                          │
 ├─────────────────────────────────────────────────┤
 │  Cache (Redis)                :6379             │
+#### 1. Port Already in Use
+```bash
+# Check what's using the port (Windows PowerShell example)
+Get-NetTCPConnection -LocalPort 8000 | Format-Table -AutoSize
+
+# Kill the process by PID (PowerShell)
+Stop-Process -Id <PID> -Force
+
+# Or change the port when starting the service (for uvicorn use --port)
+uvicorn api.main:app --host 0.0.0.0 --port 8001
+```
 │  ├── Session Management                        │
 │  ├── Scan Queue                                │
 │  └── Real-time Updates                         │
@@ -37,6 +55,16 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 └─────────────────────────────────────────────────┘
 ```
 
+#### 2. Local build / tool install issues
+```bash
+# If dependency installs fail while building or installing locally, try cleaning pip cache and reinstalling
+python -m pip cache purge
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt --no-cache-dir
+
+# Check disk space (Windows PowerShell)
+Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='Free(GB)';e={[math]::Round($_.Free/1GB,2)}}, @{n='Used(GB)';e={[math]::Round(($_.Used)/1GB,2)}}
+```
 ---
 
 ## 🔧 Installed Security Tools (13 Total)
@@ -46,6 +74,15 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 |------|----------|---------|------------|
 | **Bandit** | Python | Security linting | ✅ |
 | **Semgrep** | Multi-lang | Advanced SAST | ✅ |
+#### 3. Database Connection Issues
+```bash
+# Restart your local Postgres service (platform dependent)
+# Example (systemctl on Linux):
+sudo systemctl restart postgresql
+
+# Check DB readiness using psql
+psql "$DATABASE_URL" -c "SELECT version();"
+```
 | **Snyk** | Multi-lang | Vulnerability detection | ✅ |
 | **Trivy** | Containers | Container/filesystem scanning | ✅ |
 | **pip-audit** | Python | Dependency vulnerabilities | ✅ |
@@ -56,6 +93,19 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 
 ### 🌐 Dynamic Analysis (DAST) - 4 Tools
 | Tool | Purpose | Target | Complexity |
+#### 4. Scanner Tools Not Found
+```bash
+# Install scanner CLIs locally or ensure they are available on PATH
+# Example checks (Windows PowerShell)
+Get-Command snyk -ErrorAction SilentlyContinue
+Get-Command trivy -ErrorAction SilentlyContinue
+Get-Command semgrep -ErrorAction SilentlyContinue
+
+# Install if missing:
+# npm install -g snyk
+# curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+# pip install semgrep
+```
 |------|---------|--------|------------|
 | **OWASP ZAP** | Web app testing | Running apps | High |
 | **Nuclei** | Template-based scanning | Web services | Medium |
@@ -67,25 +117,48 @@ DefenSys is now a **fully containerized, enterprise-grade security platform** wi
 ## 🚀 Quick Start (5 Minutes)
 
 ### 1. Prerequisites
+### Resource Monitoring
+Use your OS tools to monitor resource usage, for example:
+
+- Windows: Task Manager or Resource Monitor
+- Linux: top, htop, vmstat, iotop
+- Disk usage: df -h (Linux/macOS) or Get-PSDrive (PowerShell)
+
+Clean up temporary files and caches according to your OS tooling.
 ```bash
-# Required software
-- Docker & Docker Compose
+# Required software for local development
+- Python 3.9+ (recommended)
+- PostgreSQL (or use a local SQLite for quickly testing)
+- Redis (optional for caching/queues)
+- RabbitMQ (optional for real-time monitoring)
 - Git
+- Node.js & npm (for frontend development)
 - 8GB+ RAM recommended
 - 10GB+ disk space
+### Scaling
+To scale the API, run multiple instances behind a load balancer or use your platform's auto-scaling features. Example approaches:
+
+- Run multiple uvicorn/gunicorn workers and put an NGINX or other reverse proxy in front
+- Deploy behind a cloud load balancer and use a process manager or container orchestrator
+
+Ensure session/state is stored in Redis or another shared store when scaling horizontally.
 ```
 
-### 2. Clone & Deploy
+### 2. Clone & Run Locally
 ```bash
 # Clone the repository
 git clone https://github.com/Hxxrshh/Devsyns.git
 cd Devsyns/defensys
 
-# Start all services (this will take 5-10 minutes on first run)
-docker-compose up --build -d
+# Run backend locally (ensure DATABASE_URL points to a running Postgres instance or use SQLite in tests)
+cd backend
+python -m pip install -r requirements.txt
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
-# Check service status
-docker-compose ps
+# Run frontend locally (development mode)
+cd ../frontend
+npm install
+npm start
 ```
 
 ### 3. Access the Platform
@@ -104,19 +177,16 @@ open http://localhost:9000
 
 ## 📊 Service Health Check
 
-### Verify All Services
+### Verify Services (local)
 ```bash
-# Check all containers are running
-docker-compose ps
-
 # Check API health
 curl http://localhost:8000/health
 
-# Check database connection
-docker-compose exec db psql -U defensys_user -d defensys_db -c "SELECT version();"
+# Check database connection (example using psql against a running Postgres)
+psql "$DATABASE_URL" -c "SELECT version();"
 
-# Check Redis
-docker-compose exec redis redis-cli ping
+# Check Redis (if running locally)
+redis-cli ping
 ```
 
 ### Expected Output
@@ -169,24 +239,22 @@ curl -X POST "http://localhost:8000/api/simple-scan" \
 
 ## 📈 Monitoring & Maintenance
 
-### Container Logs
+### Application Logs
 ```bash
-# View all logs
-docker-compose logs -f
+# Backend logs are printed to stdout when running uvicorn locally
+# For production deployments, run with a process manager and capture logs (systemd, supervisord, etc.)
 
-# View specific service logs
-docker-compose logs -f api
-docker-compose logs -f db
-docker-compose logs -f frontend
+# Postgres logs depend on your DB installation and location
+# Redis logs depend on your Redis installation
 ```
 
 ### Database Backup
 ```bash
-# Create backup
-docker-compose exec db pg_dump -U defensys_user defensys_db > backup_$(date +%Y%m%d).sql
+# Create backup using local psql
+pg_dump -U defensys_user -h localhost -d defensys_db > backup_$(date +%Y%m%d).sql
 
 # Restore backup
-docker-compose exec -T db psql -U defensys_user defensys_db < backup_20240920.sql
+psql -U defensys_user -h localhost -d defensys_db < backup_20240920.sql
 ```
 
 ### Resource Monitoring
@@ -239,8 +307,7 @@ class CustomSecurityScanner(Scanner):
 
 ### Local Development
 ```bash
-# Start only database and Redis
-docker-compose up db redis -d
+# Run database and Redis using your local installations or managed services
 
 # Run API locally for development
 cd backend
@@ -248,7 +315,7 @@ pip install -r requirements.txt
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run frontend locally
-cd frontend
+cd ../frontend
 npm install
 npm start
 ```
